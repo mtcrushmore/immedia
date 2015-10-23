@@ -30,35 +30,22 @@ var Images = require('./images.js');
 
 var TreeTimeLine = React.createClass({
 
-  getInitialState: function(){
-    
-  //Initial timespan set at one week
-  return {
-      startTime: 0,
-      endTime: 7,
-      apiData: [],
-      width: this.props.window.width,
-      height: this.props.window.height,
-    };
+  getInitialState: function(){   
+    return {
+        apiData: [],
+        width: this.props.window.width,
+        height: this.props.window.height,
+      };
   },
 
-  //Api's to be called are listed in this array
-  apis: [
-    'nyt',
-    // 'twitter',
-    'youtube',
-    // 'news'
-  ],
-
-  //Rendering the timeline will start a query for a search term passed down from the results page.
-  query: function(searchTerm){
-    
-    for(var i = 0; i < this.apis.length; i++){
+  /* Rendering the timeline will start a query for a search term passed down from the results page. */
+  query: function(searchTerm){  
+    for(var i = 0; i < query.apis.length; i++){
       this.handleQuery({
         searchTerm: searchTerm.replace(/\s\(.*$/,''),
         days: 30,
-        url: 'http://localhost:3000/api/' + this.apis[i],
-        api: this.apis[i]
+        url: 'http://localhost:3000/api/' + query.apis[i],
+        api: query.apis[i]
       });
     }
   },
@@ -68,21 +55,19 @@ var TreeTimeLine = React.createClass({
   },
 
   componentDidUpdate: function() {
-    this.renderCanvas(0, 6, 1);    // Crucial step that (re-)renders D3 canvas
+    this.renderCanvas(0, 6, 1);
     this.renderCanvas(7, 13, 2);
     this.renderCanvas(14, 20, 3);
     this.renderCanvas(21, 28, 4);
   },
 
-  componentWillReceiveProps: function(newProps){
-    
+  componentWillReceiveProps: function(newProps){  
     //If the new search term matches the term queried for the current results, nothing will change.
     if (this.props.searchTerm !== newProps.searchTerm) {
       helpers.renderCount = 0;
       this.query(newProps.searchTerm.toLowerCase());
       this.setState({apiData: []});
     }
-
     this.setState({
       width: newProps.window.width,
       height: newProps.window.height,
@@ -94,59 +79,16 @@ var TreeTimeLine = React.createClass({
 
     $.post(searchQuery.url, searchQuery)
      .done(function(response) {
-
         if(typeof response === 'string') return;
 
         helpers.renderCount++;
-
         // Set State to initiate a re-rendering based on new API call data
         this.setState(function(previousState, currentProps) {
           // Make a copy of previous apiData to mutate and use to reset State
-          var previousApiData = previousState['apiData'].slice();
-          // Data is structured in an array that corresponds to sorted order by date descending
-          // where each index has the following object:
-          /*
-              {
-                'date': 'YYYY-MM-DD',
-                'children': [
-                  {
-                    'source': 'nyt',
-                    'children': [ {Article 1}, {Article 2}]
-                  }
-                ]
-              }
-          */
-
-          // Loop through each day in apiData and add new articles/videos/etc
-          // from returning API appropriately
-          for(var date in response) {
-            var i = 0;
-            for(; i < previousApiData.length; i++) {
-              if(previousApiData[i]['date'] === date) {
-                previousApiData[i]['children'].push(response[date]);
-                break;
-              }
-            }
-            // If loop terminates fully, no content exists for date
-            // so add content to the State array
-            if(i === previousApiData.length) {
-              previousApiData.push(
-                {
-                  'date': date, 
-                  'children': [
-                    response[date]
-                  ]
-                });
-            }
-          }
-          // Sort State array with API data by date descending
-          previousApiData.sort(function(a, b) {
-            var aDate = new Date(a['date']);
-            var bDate = new Date(b['date']);
-            return bDate - aDate;
-          });
+          var previousApiData = query.processResponse(response, previousState, currentProps);
           return {apiData: previousApiData};
         });
+
      }.bind(this));
   },
 
@@ -179,28 +121,8 @@ var TreeTimeLine = React.createClass({
   },
 
   mouseOver: function(item) {
-    if (this.mousedOver === item) {
-      return;
-    } else {
-      this.mousedOver = item;
-    }
-
-    item.hasOwnProperty('tweet_id_str') ? item.tweet_id = item.tweet_id_str : '';
-
-    this.props.mouseOver({
-        title: item.title,
-        date: item.date,
-        url: item.url,
-        img: item.img,
-        source: item.parent.source,
-        id: item.id,
-        tweetId: (item.hasOwnProperty('tweet_id_str') ? item.tweet_id_str : ''),
-        byline: (item.hasOwnProperty('byline') ? item.byline : ''),
-        videoId: (item.hasOwnProperty('videoId') ? item.videoId : ''),
-        abstract: (item.hasOwnProperty('abstract') ? item.abstract : ''),
-        height: (item.hasOwnProperty('height') ? item.height : ''),
-        width: (item.hasOwnProperty('width') ? item.width : ''),
-      });
+    item = helpers.mouseOver(item);
+    this.props.mouseOver(item);
   },
 
   renderCanvas: function(startDay, endDay, canvas) {
@@ -243,7 +165,7 @@ var TreeTimeLine = React.createClass({
       .attr('class', 'svgclass' + canvas)
       .attr('class', 'timeLine')
       .attr('width', width)
-      .attr('height', this.state.height)
+      .attr('height', height)
       .append('g')
       .attr('transform', 'translate(60, ' + margin.top + ')');
 
@@ -289,7 +211,7 @@ var TreeTimeLine = React.createClass({
     
     /* When all data has been loaded, toggle the nodes so that only the first two days of each week
     will be expanded (the other days are collapsed). This makes the canvas less crowded. */
-    if (helpers.renderCount === this.apis.length) {
+    if (helpers.renderCount === query.apis.length) {
       root.children.forEach(helpers.toggle);
       helpers.toggle(root.children[0]);
       helpers.toggle(root.children[1]);
@@ -324,7 +246,7 @@ var TreeTimeLine = React.createClass({
 
       Links.describeLinks(svg, tree, nodes, diagonal);
 
-      //Update nodes.
+      // //Update nodes.
       var node = svg.selectAll('g.node')
         .on('click', function(d) {
           if (d.url) { 
@@ -348,29 +270,6 @@ var TreeTimeLine = React.createClass({
             component.mouseOver(d);
           }
         })
-        .on('mouseover', function(d) {
-          if (d.depth === 3) {
-            d3.select(this).select('circle')
-              .transition()
-              .attr({
-                r: 28,
-              })
-            }
-        })
-        .on('mouseout', function(d) {
-          d3.select(this).select('circle')
-            .style({
-              stroke: 'steelblue',
-              strokeWidth: 1.5 + 'px',
-            })
-          if (d.depth === 3) {
-            d3.select(this).select('circle')
-              .transition()
-              .attr({
-                r: 25,
-              })
-            }
-        });
     }
  
     /* On first render, automatically preview the most recent item by mimicking a mouseOver event. */

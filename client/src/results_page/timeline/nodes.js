@@ -20,11 +20,6 @@ module.exports = {
     popular result) it will affix to the bottom of the canvas. */
     nodes.forEach(function(d) { 
       if (d.depth === 1) {
-        // if (d === oldestItem) {
-        //   d.x = height - margin.bottom;
-        //   d.y = 0;
-        //   return;
-        // }
         d.x = yScale(new Date(d.date));
         d.y = 0;
         d.fixed = true;
@@ -41,8 +36,29 @@ module.exports = {
 
     //Attribute mouse events to various nodes upon entering.
     var nodeEnter = node.enter().append('svg:g')
-      .attr('class', 'node')
-      .attr("transform", function(d) { return "translate(" + d.y + "," + d.x + ")"; })
+      .on('mouseover', function(d) {
+        if (d.depth === 3) {
+          d3.select(this).select('circle')
+            .transition()
+            .attr({
+              r: 28,
+            })
+          }
+      })
+      .on('mouseout', function(d) {
+        d3.select(this).select('circle')
+          .style({
+            stroke: 'steelblue',
+            strokeWidth: 1.5 + 'px',
+          })
+        if (d.depth === 3) {
+          d3.select(this).select('circle')
+            .transition()
+            .attr({
+              r: 25,
+            })
+          }
+      });
 
     /* Nodes will enter at a specified point on the canvas. When update is called on first render,
     the nodes will take shape with certain attributes, including radius, fills (usually with image if
